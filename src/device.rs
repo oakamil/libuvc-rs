@@ -334,7 +334,7 @@ impl From<uvc_vs_desc_subtype> for DescriptionSubtype {
 
 impl<'a> FormatDescriptor<'a> {
     #[must_use]
-    pub fn supported_formats(&self) -> FrameDescriptors {
+    pub fn supported_formats(&self) -> FrameDescriptors<'_> {
         FrameDescriptors {
             head: unsafe { (*self.format_desc.as_ptr()).frame_descs },
             _ph: PhantomData,
