@@ -1,6 +1,6 @@
 use uvc_sys::*;
 
-use crate::device::{Device, DeviceList};
+use crate::device::{Device, DeviceHandle, DeviceList};
 use crate::error::{Error, Result};
 
 use std::ffi::CString;
@@ -78,6 +78,26 @@ impl<'a> Context<'a> {
                 return Err(err);
             }
             Ok(Device::from_raw(device.assume_init()))
+        }
+    }
+
+    /// Wraps an existing file descriptor (e.g., from Android UsbManager)
+    /// into an open DeviceHandle. This bypasses standard USB enumeration.
+    pub fn wrap_fd(&'a self, fd: c_int) -> Result<DeviceHandle<'a>> {
+        unsafe {
+            let mut devh = std::mem::MaybeUninit::<*mut uvc_device_handle>::uninit();
+
+            // uvc_wrap internally calls libusb_wrap_sys_device
+            let err = uvc_sys::uvc_wrap(fd, self.ctx.as_ptr(), devh.as_mut_ptr()).into();
+
+            if err == Error::Success {
+                Ok(DeviceHandle {
+                    devh: NonNull::new(devh.assume_init()).unwrap(),
+                    _devh: PhantomData,
+                })
+            } else {
+                Err(err)
+            }
         }
     }
 }
