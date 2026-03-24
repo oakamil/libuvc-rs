@@ -83,6 +83,7 @@ impl<'a> Context<'a> {
 
     /// Wraps an existing file descriptor (e.g., from Android UsbManager)
     /// into an open DeviceHandle. This bypasses standard USB enumeration.
+    #[cfg(feature = "wrap_fd")]
     pub fn wrap_fd(&'a self, fd: c_int) -> Result<DeviceHandle<'a>> {
         unsafe {
             let mut devh = std::mem::MaybeUninit::<*mut uvc_device_handle>::uninit();

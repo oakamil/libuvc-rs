@@ -169,7 +169,7 @@ unsafe impl<'a> Sync for DeviceHandle<'a> {}
 /// Open handle to a device
 pub struct DeviceHandle<'a> {
     pub(crate) devh: NonNull<uvc_device_handle>,
-    _devh: PhantomData<&'a uvc_device_handle>,
+    pub(crate) _devh: PhantomData<&'a uvc_device_handle>,
 }
 
 impl<'a, 'b> DeviceHandle<'a> {

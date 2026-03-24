@@ -20,6 +20,8 @@ fn main() {
         builder = builder.clang_arg(format!("-I{}", include));
     }
 
+    builder = builder.clang_arg("-DLIBUSB_API_VERSION=0x01000107");
+
     let bindings = builder
         .header("wrapper.h")
         .allowlist_function("uvc_.*")
