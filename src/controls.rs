@@ -364,4 +364,375 @@ impl<'a> DeviceHandle<'a> {
             }
         }
     }
+
+    pub fn white_balance_temperature_auto(&self) -> Result<bool> {
+        unsafe {
+            let mut auto = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_white_balance_temperature_auto(
+                self.devh.as_ptr(),
+                auto.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(auto.assume_init() != 0)
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_white_balance_temperature_auto(&self, auto: bool) -> Result<()> {
+        let auto_val: u8 = if auto { 1 } else { 0 };
+
+        unsafe {
+            let err = uvc_set_white_balance_temperature_auto(self.devh.as_ptr(), auto_val).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn white_balance_temperature(&self) -> Result<u16> {
+        unsafe {
+            let mut temp = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_white_balance_temperature(
+                self.devh.as_ptr(),
+                temp.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(temp.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_white_balance_temperature(&self, temp: u16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_white_balance_temperature(self.devh.as_ptr(), temp).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn white_balance_temperature_range(&self) -> Result<Range<u16>> {
+        unsafe {
+            let mut min = std::mem::MaybeUninit::uninit();
+            let mut max = std::mem::MaybeUninit::uninit();
+            let mut step = std::mem::MaybeUninit::uninit();
+            let mut def = std::mem::MaybeUninit::uninit();
+
+            let err = uvc_get_white_balance_temperature(
+                self.devh.as_ptr(),
+                min.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MIN,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_white_balance_temperature(
+                self.devh.as_ptr(),
+                max.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MAX,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_white_balance_temperature(
+                self.devh.as_ptr(),
+                step.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_white_balance_temperature(
+                self.devh.as_ptr(),
+                def.as_mut_ptr(),
+                uvc_req_code_UVC_GET_DEF,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            Ok(Range {
+                min: min.assume_init(),
+                max: max.assume_init(),
+                step: step.assume_init(),
+                default: def.assume_init(),
+            })
+        }
+    }
+
+    pub fn sharpness(&self) -> Result<u16> {
+        unsafe {
+            let mut sharpness = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_sharpness(
+                self.devh.as_ptr(),
+                sharpness.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(sharpness.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_sharpness(&self, sharpness: u16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_sharpness(self.devh.as_ptr(), sharpness).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn sharpness_range(&self) -> Result<Range<u16>> {
+        unsafe {
+            let mut min = std::mem::MaybeUninit::uninit();
+            let mut max = std::mem::MaybeUninit::uninit();
+            let mut step = std::mem::MaybeUninit::uninit();
+            let mut def = std::mem::MaybeUninit::uninit();
+
+            let err = uvc_get_sharpness(
+                self.devh.as_ptr(),
+                min.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MIN,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_sharpness(
+                self.devh.as_ptr(),
+                max.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MAX,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_sharpness(
+                self.devh.as_ptr(),
+                step.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_sharpness(
+                self.devh.as_ptr(),
+                def.as_mut_ptr(),
+                uvc_req_code_UVC_GET_DEF,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            Ok(Range {
+                min: min.assume_init(),
+                max: max.assume_init(),
+                step: step.assume_init(),
+                default: def.assume_init(),
+            })
+        }
+    }
+
+    pub fn contrast(&self) -> Result<u16> {
+        unsafe {
+            let mut contrast = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_contrast(
+                self.devh.as_ptr(),
+                contrast.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(contrast.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_contrast(&self, contrast: u16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_contrast(self.devh.as_ptr(), contrast).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn contrast_range(&self) -> Result<Range<u16>> {
+        unsafe {
+            let mut min = std::mem::MaybeUninit::uninit();
+            let mut max = std::mem::MaybeUninit::uninit();
+            let mut step = std::mem::MaybeUninit::uninit();
+            let mut def = std::mem::MaybeUninit::uninit();
+
+            let err = uvc_get_contrast(
+                self.devh.as_ptr(),
+                min.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MIN,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_contrast(
+                self.devh.as_ptr(),
+                max.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MAX,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_contrast(
+                self.devh.as_ptr(),
+                step.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_contrast(
+                self.devh.as_ptr(),
+                def.as_mut_ptr(),
+                uvc_req_code_UVC_GET_DEF,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            Ok(Range {
+                min: min.assume_init(),
+                max: max.assume_init(),
+                step: step.assume_init(),
+                default: def.assume_init(),
+            })
+        }
+    }
+
+    pub fn saturation(&self) -> Result<u16> {
+        unsafe {
+            let mut saturation = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_saturation(
+                self.devh.as_ptr(),
+                saturation.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(saturation.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_saturation(&self, saturation: u16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_saturation(self.devh.as_ptr(), saturation).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn saturation_range(&self) -> Result<Range<u16>> {
+        unsafe {
+            let mut min = std::mem::MaybeUninit::uninit();
+            let mut max = std::mem::MaybeUninit::uninit();
+            let mut step = std::mem::MaybeUninit::uninit();
+            let mut def = std::mem::MaybeUninit::uninit();
+
+            let err = uvc_get_saturation(
+                self.devh.as_ptr(),
+                min.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MIN,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_saturation(
+                self.devh.as_ptr(),
+                max.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MAX,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_saturation(
+                self.devh.as_ptr(),
+                step.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_saturation(
+                self.devh.as_ptr(),
+                def.as_mut_ptr(),
+                uvc_req_code_UVC_GET_DEF,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            Ok(Range {
+                min: min.assume_init(),
+                max: max.assume_init(),
+                step: step.assume_init(),
+                default: def.assume_init(),
+            })
+        }
+    }
 }

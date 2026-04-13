@@ -1,6 +1,6 @@
 use uvc_sys::*;
 
-use crate::device::{Device, DeviceHandle, DeviceList};
+use crate::device::{Device, DeviceList};
 use crate::error::{Error, Result};
 
 use std::ffi::CString;
