@@ -735,4 +735,33 @@ impl<'a> DeviceHandle<'a> {
             })
         }
     }
+
+    pub fn gamma(&self) -> Result<u16> {
+        unsafe {
+            let mut gamma = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_gamma(
+                self.devh.as_ptr(),
+                gamma.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(gamma.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_gamma(&self, gamma: u16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_gamma(self.devh.as_ptr(), gamma).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
 }
