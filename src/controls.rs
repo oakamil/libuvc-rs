@@ -764,4 +764,89 @@ impl<'a> DeviceHandle<'a> {
             }
         }
     }
+
+    pub fn brightness(&self) -> Result<i16> {
+        unsafe {
+            let mut brightness = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_brightness(
+                self.devh.as_ptr(),
+                brightness.as_mut_ptr(),
+                uvc_req_code_UVC_GET_CUR,
+            )
+            .into();
+
+            if err == Error::Success {
+                Ok(brightness.assume_init())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn set_brightness(&self, brightness: i16) -> Result<()> {
+        unsafe {
+            let err = uvc_set_brightness(self.devh.as_ptr(), brightness).into();
+            if err == Error::Success {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }
+    }
+
+    pub fn brightness_range(&self) -> Result<Range<i16>> {
+        unsafe {
+            let mut min = std::mem::MaybeUninit::uninit();
+            let mut max = std::mem::MaybeUninit::uninit();
+            let mut step = std::mem::MaybeUninit::uninit();
+            let mut def = std::mem::MaybeUninit::uninit();
+
+            let err = uvc_get_brightness(
+                self.devh.as_ptr(),
+                min.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MIN,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_brightness(
+                self.devh.as_ptr(),
+                max.as_mut_ptr(),
+                uvc_req_code_UVC_GET_MAX,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_brightness(
+                self.devh.as_ptr(),
+                step.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let err = uvc_get_brightness(
+                self.devh.as_ptr(),
+                def.as_mut_ptr(),
+                uvc_req_code_UVC_GET_DEF,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            Ok(Range {
+                min: min.assume_init(),
+                max: max.assume_init(),
+                step: step.assume_init(),
+                default: def.assume_init(),
+            })
+        }
+    }
 }
