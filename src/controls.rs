@@ -31,6 +31,63 @@ pub struct Range<T> {
 }
 
 impl<'a> DeviceHandle<'a> {
+    unsafe fn get_range<T, F>(&self, mut get_ctrl: F) -> Result<Range<T>>
+    where
+        F: FnMut(*mut uvc_device_handle, *mut T, u32) -> uvc_error_t,
+    {
+        let mut min = std::mem::MaybeUninit::uninit();
+        let mut max = std::mem::MaybeUninit::uninit();
+        let mut step = std::mem::MaybeUninit::uninit();
+        let mut def = std::mem::MaybeUninit::uninit();
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            min.as_mut_ptr(),
+            uvc_req_code_UVC_GET_MIN,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            max.as_mut_ptr(),
+            uvc_req_code_UVC_GET_MAX,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            step.as_mut_ptr(),
+            uvc_req_code_UVC_GET_RES,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            def.as_mut_ptr(),
+            uvc_req_code_UVC_GET_DEF,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        Ok(Range {
+            min: min.assume_init(),
+            max: max.assume_init(),
+            step: step.assume_init(),
+            default: def.assume_init(),
+        })
+    }
+
     pub fn scanning_mode(&self) -> Result<ScanningMode> {
         unsafe {
             let mut mode = std::mem::MaybeUninit::uninit();
@@ -140,59 +197,7 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn exposure_abs_range(&self) -> Result<Range<u32>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_exposure_abs(devh, ptr, req)) }
     }
 
     pub fn exposure_rel(&self) -> Result<i8> {
@@ -278,60 +283,7 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn gain_range(&self) -> Result<Range<u16>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            // We check the MIN call for success; if it fails, the control likely isn't supported.
-            let err = uvc_get_gain(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_gain(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_gain(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_gain(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_gain(devh, ptr, req)) }
     }
 
     pub fn backlight_compensation(&self) -> Result<bool> {
@@ -427,57 +379,7 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn white_balance_temperature_range(&self) -> Result<Range<u16>> {
         unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_white_balance_temperature(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_white_balance_temperature(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_white_balance_temperature(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_white_balance_temperature(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
+            self.get_range(|devh, ptr, req| uvc_get_white_balance_temperature(devh, ptr, req))
         }
     }
 
@@ -511,59 +413,7 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn sharpness_range(&self) -> Result<Range<u16>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_sharpness(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_sharpness(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_sharpness(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_sharpness(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_sharpness(devh, ptr, req)) }
     }
 
     pub fn contrast(&self) -> Result<u16> {
@@ -596,59 +446,7 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn contrast_range(&self) -> Result<Range<u16>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_contrast(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_contrast(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_contrast(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_contrast(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_contrast(devh, ptr, req)) }
     }
 
     pub fn saturation(&self) -> Result<u16> {
@@ -681,59 +479,7 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn saturation_range(&self) -> Result<Range<u16>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_saturation(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_saturation(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_saturation(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_saturation(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_saturation(devh, ptr, req)) }
     }
 
     pub fn gamma(&self) -> Result<u16> {
@@ -763,6 +509,10 @@ impl<'a> DeviceHandle<'a> {
                 Err(err)
             }
         }
+    }
+
+    pub fn gamma_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_gamma(devh, ptr, req)) }
     }
 
     pub fn brightness(&self) -> Result<i16> {
@@ -795,58 +545,6 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn brightness_range(&self) -> Result<Range<i16>> {
-        unsafe {
-            let mut min = std::mem::MaybeUninit::uninit();
-            let mut max = std::mem::MaybeUninit::uninit();
-            let mut step = std::mem::MaybeUninit::uninit();
-            let mut def = std::mem::MaybeUninit::uninit();
-
-            let err = uvc_get_brightness(
-                self.devh.as_ptr(),
-                min.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MIN,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_brightness(
-                self.devh.as_ptr(),
-                max.as_mut_ptr(),
-                uvc_req_code_UVC_GET_MAX,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_brightness(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_RES,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            let err = uvc_get_brightness(
-                self.devh.as_ptr(),
-                def.as_mut_ptr(),
-                uvc_req_code_UVC_GET_DEF,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-
-            Ok(Range {
-                min: min.assume_init(),
-                max: max.assume_init(),
-                step: step.assume_init(),
-                default: def.assume_init(),
-            })
-        }
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_brightness(devh, ptr, req)) }
     }
 }
