@@ -7,7 +7,7 @@ struct Version {
 const VERSION: Version = Version {
     major: 0,
     minor: 0,
-    patch: 6,
+    patch: 7,
 };
 
 fn main() {
