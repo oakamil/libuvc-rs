@@ -148,6 +148,38 @@ impl<'a> DeviceHandle<'a> {
         }
     }
 
+    pub fn supported_ae_modes(&self) -> Result<Vec<AutoExposureMode>> {
+        unsafe {
+            let mut mode = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_ae_mode(
+                self.devh.as_ptr(),
+                mode.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
+            )
+            .into();
+            if err != Error::Success {
+                return Err(err);
+            }
+
+            let mode = mode.assume_init();
+            let mut modes = Vec::new();
+            if mode & 1 != 0 {
+                modes.push(AutoExposureMode::Manual);
+            }
+            if mode & 2 != 0 {
+                modes.push(AutoExposureMode::Auto);
+            }
+            if mode & 4 != 0 {
+                modes.push(AutoExposureMode::ShutterPriority);
+            }
+            if mode & 8 != 0 {
+                modes.push(AutoExposureMode::AperturePriority);
+            }
+
+            Ok(modes)
+        }
+    }
+
     pub fn ae_priority(&self) -> Result<AutoExposurePriority> {
         unsafe {
             let mut priority = std::mem::MaybeUninit::uninit();
