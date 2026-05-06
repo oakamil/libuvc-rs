@@ -286,35 +286,37 @@ impl<'a> DeviceHandle<'a> {
         unsafe { self.get_range(|devh, ptr, req| uvc_get_gain(devh, ptr, req)) }
     }
 
-    pub fn backlight_compensation(&self) -> Result<bool> {
+    pub fn backlight_compensation(&self) -> Result<u16> {
         unsafe {
-            let mut comp = std::mem::MaybeUninit::uninit();
+            let mut backlight_compensation = std::mem::MaybeUninit::uninit();
             let err = uvc_get_backlight_compensation(
                 self.devh.as_ptr(),
-                comp.as_mut_ptr(),
+                backlight_compensation.as_mut_ptr(),
                 uvc_req_code_UVC_GET_CUR,
             )
             .into();
 
             if err == Error::Success {
-                Ok(comp.assume_init() != 0)
+                Ok(backlight_compensation.assume_init())
             } else {
                 Err(err)
             }
         }
     }
 
-    pub fn set_backlight_compensation(&self, comp: bool) -> Result<()> {
-        let comp_val: u16 = if comp { 1 } else { 0 };
-
+    pub fn set_backlight_compensation(&self, backlight_compensation: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_backlight_compensation(self.devh.as_ptr(), comp_val).into();
+            let err = uvc_set_gain(self.devh.as_ptr(), backlight_compensation).into();
             if err == Error::Success {
                 Ok(())
             } else {
                 Err(err)
             }
         }
+    }
+
+    pub fn backlight_compensation_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_backlight_compensation(devh, ptr, req)) }
     }
 
     pub fn white_balance_temperature_auto(&self) -> Result<bool> {
