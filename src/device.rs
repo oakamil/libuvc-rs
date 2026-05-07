@@ -173,6 +173,19 @@ pub struct DeviceHandle<'a> {
 }
 
 impl<'a, 'b> DeviceHandle<'a> {
+    /// Returns the underlying device
+    #[must_use]
+    pub fn device(&self) -> Device<'a> {
+        unsafe {
+            let dev = uvc_get_device(self.devh.as_ptr());
+            // Note: uvc_get_device does not increment the refcount, but `Device::from_raw`
+            // does not increment it either. However, `Device` Drop decrements it.
+            // So we must increment it here to prevent use-after-free when `Device` is dropped.
+            uvc_ref_device(dev);
+            Device::from_raw(dev)
+        }
+    }
+
     /// List all supported formats
     #[must_use]
     pub fn supported_formats(&self) -> FormatDescriptors<'a> {
