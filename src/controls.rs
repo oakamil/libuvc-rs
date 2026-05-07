@@ -338,7 +338,7 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn set_backlight_compensation(&self, backlight_compensation: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_gain(self.devh.as_ptr(), backlight_compensation).into();
+            let err = uvc_set_backlight_compensation(self.devh.as_ptr(), backlight_compensation).into();
             if err == Error::Success {
                 Ok(())
             } else {
