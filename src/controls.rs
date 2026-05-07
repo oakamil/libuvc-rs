@@ -2,13 +2,13 @@ use crate::device::DeviceHandle;
 use crate::error::{Error, Result};
 use uvc_sys::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ScanningMode {
     Interlaced,
     Progressive,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AutoExposureMode {
     Manual,
     Auto,
@@ -16,7 +16,7 @@ pub enum AutoExposureMode {
     AperturePriority,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AutoExposurePriority {
     Constant,
     Variable,
