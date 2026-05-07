@@ -30,7 +30,41 @@ pub struct Range<T> {
     pub default: T,
 }
 
+// Helper trait to clean up FFI error handling
+pub trait ToResult {
+    fn to_result(self) -> Result<()>;
+}
+
+impl ToResult for Error {
+    fn to_result(self) -> Result<()> {
+        if self == Error::Success {
+            Ok(())
+        } else {
+            Err(self)
+        }
+    }
+}
+
 impl<'a> DeviceHandle<'a> {
+    unsafe fn get_value<T, F>(&self, mut get_ctrl: F) -> Result<T>
+    where
+        F: FnMut(*mut uvc_device_handle, *mut T, u32) -> uvc_error_t,
+    {
+        let mut val = std::mem::MaybeUninit::uninit();
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            val.as_mut_ptr(),
+            uvc_req_code_UVC_GET_CUR,
+        )
+        .into();
+
+        if err == Error::Success {
+            Ok(val.assume_init())
+        } else {
+            Err(err)
+        }
+    }
+
     unsafe fn get_range<T, F>(&self, mut get_ctrl: F) -> Result<Range<T>>
     where
         F: FnMut(*mut uvc_device_handle, *mut T, u32) -> uvc_error_t,
@@ -90,17 +124,8 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn scanning_mode(&self) -> Result<ScanningMode> {
         unsafe {
-            let mut mode = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_scanning_mode(
-                self.devh.as_ptr(),
-                mode.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-            match mode.assume_init() {
+            let mode: u8 = self.get_value(|devh, ptr, req| uvc_get_scanning_mode(devh, ptr, req))?;
+            match mode {
                 0 => Ok(ScanningMode::Interlaced),
                 1 => Ok(ScanningMode::Progressive),
                 _ => Err(Error::Other),
@@ -110,17 +135,8 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn ae_mode(&self) -> Result<AutoExposureMode> {
         unsafe {
-            let mut mode = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_ae_mode(
-                self.devh.as_ptr(),
-                mode.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-            match mode.assume_init() {
+            let mode: u8 = self.get_value(|devh, ptr, req| uvc_get_ae_mode(devh, ptr, req))?;
+            match mode {
                 1 => Ok(AutoExposureMode::Manual),
                 2 => Ok(AutoExposureMode::Auto),
                 4 => Ok(AutoExposureMode::ShutterPriority),
@@ -139,12 +155,7 @@ impl<'a> DeviceHandle<'a> {
         };
 
         unsafe {
-            let err = uvc_set_ae_mode(self.devh.as_ptr(), mode_val).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_ae_mode(self.devh.as_ptr(), mode_val)).to_result()
         }
     }
 
@@ -182,17 +193,8 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn ae_priority(&self) -> Result<AutoExposurePriority> {
         unsafe {
-            let mut priority = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_ae_priority(
-                self.devh.as_ptr(),
-                priority.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-            match priority.assume_init() {
+            let priority: u8 = self.get_value(|devh, ptr, req| uvc_get_ae_priority(devh, ptr, req))?;
+            match priority {
                 0 => Ok(AutoExposurePriority::Constant),
                 1 => Ok(AutoExposurePriority::Variable),
                 _ => Err(Error::Other),
@@ -201,30 +203,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn exposure_abs(&self) -> Result<u32> {
-        unsafe {
-            let mut time = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                time.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(time.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_exposure_abs(devh, ptr, req)) }
     }
 
     pub fn set_exposure_abs(&self, time: u32) -> Result<()> {
         unsafe {
-            let err = uvc_set_exposure_abs(self.devh.as_ptr(), time).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_exposure_abs(self.devh.as_ptr(), time)).to_result()
         }
     }
 
@@ -233,37 +217,11 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn exposure_rel(&self) -> Result<i8> {
-        unsafe {
-            let mut step = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_exposure_rel(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(step.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_exposure_rel(devh, ptr, req)) }
     }
 
     pub fn focus_abs(&self) -> Result<u16> {
-        unsafe {
-            let mut focus = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_focus_abs(
-                self.devh.as_ptr(),
-                focus.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(focus.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_focus_abs(devh, ptr, req)) }
     }
 
     pub fn focus_rel(&self) -> Result<(i8, u8)> {
@@ -286,31 +244,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn gain(&self) -> Result<u16> {
-        unsafe {
-            let mut gain = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_gain(
-                self.devh.as_ptr(),
-                gain.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(gain.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_gain(devh, ptr, req)) }
     }
 
     pub fn set_gain(&self, gain: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_gain(self.devh.as_ptr(), gain).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_gain(self.devh.as_ptr(), gain)).to_result()
         }
     }
 
@@ -319,31 +258,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn backlight_compensation(&self) -> Result<u16> {
-        unsafe {
-            let mut backlight_compensation = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_backlight_compensation(
-                self.devh.as_ptr(),
-                backlight_compensation.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(backlight_compensation.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_backlight_compensation(devh, ptr, req)) }
     }
 
     pub fn set_backlight_compensation(&self, backlight_compensation: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_backlight_compensation(self.devh.as_ptr(), backlight_compensation).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_backlight_compensation(self.devh.as_ptr(), backlight_compensation)).to_result()
         }
     }
 
@@ -353,19 +273,8 @@ impl<'a> DeviceHandle<'a> {
 
     pub fn white_balance_temperature_auto(&self) -> Result<bool> {
         unsafe {
-            let mut auto = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_white_balance_temperature_auto(
-                self.devh.as_ptr(),
-                auto.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(auto.assume_init() != 0)
-            } else {
-                Err(err)
-            }
+            let auto: u8 = self.get_value(|devh, ptr, req| uvc_get_white_balance_temperature_auto(devh, ptr, req))?;
+            Ok(auto != 0)
         }
     }
 
@@ -373,41 +282,17 @@ impl<'a> DeviceHandle<'a> {
         let auto_val: u8 = if auto { 1 } else { 0 };
 
         unsafe {
-            let err = uvc_set_white_balance_temperature_auto(self.devh.as_ptr(), auto_val).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_white_balance_temperature_auto(self.devh.as_ptr(), auto_val)).to_result()
         }
     }
 
     pub fn white_balance_temperature(&self) -> Result<u16> {
-        unsafe {
-            let mut temp = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_white_balance_temperature(
-                self.devh.as_ptr(),
-                temp.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(temp.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_white_balance_temperature(devh, ptr, req)) }
     }
 
     pub fn set_white_balance_temperature(&self, temp: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_white_balance_temperature(self.devh.as_ptr(), temp).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_white_balance_temperature(self.devh.as_ptr(), temp)).to_result()
         }
     }
 
@@ -418,31 +303,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn sharpness(&self) -> Result<u16> {
-        unsafe {
-            let mut sharpness = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_sharpness(
-                self.devh.as_ptr(),
-                sharpness.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(sharpness.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_sharpness(devh, ptr, req)) }
     }
 
     pub fn set_sharpness(&self, sharpness: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_sharpness(self.devh.as_ptr(), sharpness).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_sharpness(self.devh.as_ptr(), sharpness)).to_result()
         }
     }
 
@@ -451,31 +317,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn contrast(&self) -> Result<u16> {
-        unsafe {
-            let mut contrast = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_contrast(
-                self.devh.as_ptr(),
-                contrast.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(contrast.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_contrast(devh, ptr, req)) }
     }
 
     pub fn set_contrast(&self, contrast: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_contrast(self.devh.as_ptr(), contrast).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_contrast(self.devh.as_ptr(), contrast)).to_result()
         }
     }
 
@@ -484,31 +331,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn saturation(&self) -> Result<u16> {
-        unsafe {
-            let mut saturation = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_saturation(
-                self.devh.as_ptr(),
-                saturation.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(saturation.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_saturation(devh, ptr, req)) }
     }
 
     pub fn set_saturation(&self, saturation: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_saturation(self.devh.as_ptr(), saturation).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_saturation(self.devh.as_ptr(), saturation)).to_result()
         }
     }
 
@@ -517,31 +345,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn gamma(&self) -> Result<u16> {
-        unsafe {
-            let mut gamma = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_gamma(
-                self.devh.as_ptr(),
-                gamma.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(gamma.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_gamma(devh, ptr, req)) }
     }
 
     pub fn set_gamma(&self, gamma: u16) -> Result<()> {
         unsafe {
-            let err = uvc_set_gamma(self.devh.as_ptr(), gamma).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_gamma(self.devh.as_ptr(), gamma)).to_result()
         }
     }
 
@@ -550,31 +359,12 @@ impl<'a> DeviceHandle<'a> {
     }
 
     pub fn brightness(&self) -> Result<i16> {
-        unsafe {
-            let mut brightness = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_brightness(
-                self.devh.as_ptr(),
-                brightness.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-
-            if err == Error::Success {
-                Ok(brightness.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_brightness(devh, ptr, req)) }
     }
 
     pub fn set_brightness(&self, brightness: i16) -> Result<()> {
         unsafe {
-            let err = uvc_set_brightness(self.devh.as_ptr(), brightness).into();
-            if err == Error::Success {
-                Ok(())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_brightness(self.devh.as_ptr(), brightness)).to_result()
         }
     }
 
