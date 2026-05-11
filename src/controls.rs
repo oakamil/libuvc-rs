@@ -385,4 +385,18 @@ impl<'a> DeviceHandle<'a> {
     pub fn digital_multiplier_limit_range(&self) -> Result<Range<u16>> {
         unsafe { self.get_range(|devh, ptr, req| uvc_get_digital_multiplier_limit(devh, ptr, req)) }
     }
+
+    pub fn digital_multiplier(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_digital_multiplier(devh, ptr, req)) }
+    }
+
+    pub fn set_digital_multiplier(&self, multiplier_step: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_digital_multiplier(self.devh.as_ptr(), multiplier_step)).to_result()
+        }
+    }
+
+    pub fn digital_multiplier_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_digital_multiplier(devh, ptr, req)) }
+    }
 }
