@@ -10,6 +10,11 @@ use std::ptr::NonNull;
 
 unsafe impl<'a> Send for Context<'a> {}
 unsafe impl<'a> Sync for Context<'a> {}
+#[cfg(target_os = "android")]
+extern "C" {
+    fn libusb_set_option(ctx: *mut std::ffi::c_void, option: u32, ...) -> i32;
+}
+
 #[derive(Debug)]
 /// Contains the `libuvc` context
 pub struct Context<'a> {
@@ -30,6 +35,10 @@ impl<'a> Context<'a> {
     pub fn new() -> Result<Self> {
         unsafe {
             let mut ctx = std::mem::MaybeUninit::<*mut uvc_context>::uninit();
+            #[cfg(target_os = "android")]
+            {
+                libusb_set_option(std::ptr::null_mut(), 2);
+            }
             let err = uvc_init(ctx.as_mut_ptr(), std::ptr::null_mut()).into();
             if err == Error::Success {
                 Ok(Context {

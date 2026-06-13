@@ -78,7 +78,10 @@ fn main() {
 
     if std::env::var_os("CARGO_FEATURE_JPEG").is_some() {
         builder.file("source/src/frame-mjpeg.c");
-        let jpeg_includes = std::env::var_os("DEP_JPEG_INCLUDE").unwrap();
+
+        let jpeg_includes = std::env::var_os("DEP_JPEG_INCLUDE")
+            .or_else(|| std::env::var_os("DEP_TURBOJPEG_INCLUDE"))
+            .expect("Failed to find JPEG headers via Cargo env vars");
         for jpeg_include in std::env::split_paths(&jpeg_includes) {
             builder.include(jpeg_include);
         }
