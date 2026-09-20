@@ -2,13 +2,13 @@ use crate::device::DeviceHandle;
 use crate::error::{Error, Result};
 use uvc_sys::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ScanningMode {
     Interlaced,
     Progressive,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AutoExposureMode {
     Manual,
     Auto,
@@ -16,45 +16,127 @@ pub enum AutoExposureMode {
     AperturePriority,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AutoExposurePriority {
     Constant,
     Variable,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Range<T> {
+    pub min: T,
+    pub max: T,
+    pub step: T,
+    pub default: T,
+}
+
+// Helper trait to clean up FFI error handling
+pub trait ToResult {
+    fn to_result(self) -> Result<()>;
+}
+
+impl ToResult for Error {
+    fn to_result(self) -> Result<()> {
+        if self == Error::Success {
+            Ok(())
+        } else {
+            Err(self)
+        }
+    }
+}
+
 impl<'a> DeviceHandle<'a> {
+    unsafe fn get_value<T, F>(&self, mut get_ctrl: F) -> Result<T>
+    where
+        F: FnMut(*mut uvc_device_handle, *mut T, u32) -> uvc_error_t,
+    {
+        let mut val = std::mem::MaybeUninit::uninit();
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            val.as_mut_ptr(),
+            uvc_req_code_UVC_GET_CUR,
+        )
+        .into();
+
+        if err == Error::Success {
+            Ok(val.assume_init())
+        } else {
+            Err(err)
+        }
+    }
+
+    unsafe fn get_range<T, F>(&self, mut get_ctrl: F) -> Result<Range<T>>
+    where
+        F: FnMut(*mut uvc_device_handle, *mut T, u32) -> uvc_error_t,
+    {
+        let mut min = std::mem::MaybeUninit::uninit();
+        let mut max = std::mem::MaybeUninit::uninit();
+        let mut step = std::mem::MaybeUninit::uninit();
+        let mut def = std::mem::MaybeUninit::uninit();
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            min.as_mut_ptr(),
+            uvc_req_code_UVC_GET_MIN,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            max.as_mut_ptr(),
+            uvc_req_code_UVC_GET_MAX,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            step.as_mut_ptr(),
+            uvc_req_code_UVC_GET_RES,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        let err = get_ctrl(
+            self.devh.as_ptr(),
+            def.as_mut_ptr(),
+            uvc_req_code_UVC_GET_DEF,
+        )
+        .into();
+        if err != Error::Success {
+            return Err(err);
+        }
+
+        Ok(Range {
+            min: min.assume_init(),
+            max: max.assume_init(),
+            step: step.assume_init(),
+            default: def.assume_init(),
+        })
+    }
+
     pub fn scanning_mode(&self) -> Result<ScanningMode> {
         unsafe {
-            let mut mode = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_scanning_mode(
-                self.devh.as_ptr(),
-                mode.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-            match mode.assume_init() {
+            let mode: u8 = self.get_value(|devh, ptr, req| uvc_get_scanning_mode(devh, ptr, req))?;
+            match mode {
                 0 => Ok(ScanningMode::Interlaced),
                 1 => Ok(ScanningMode::Progressive),
                 _ => Err(Error::Other),
             }
         }
     }
+
     pub fn ae_mode(&self) -> Result<AutoExposureMode> {
         unsafe {
-            let mut mode = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_ae_mode(
-                self.devh.as_ptr(),
-                mode.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err != Error::Success {
-                return Err(err);
-            }
-            match mode.assume_init() {
+            let mode: u8 = self.get_value(|devh, ptr, req| uvc_get_ae_mode(devh, ptr, req))?;
+            match mode {
                 1 => Ok(AutoExposureMode::Manual),
                 2 => Ok(AutoExposureMode::Auto),
                 4 => Ok(AutoExposureMode::ShutterPriority),
@@ -63,73 +145,85 @@ impl<'a> DeviceHandle<'a> {
             }
         }
     }
-    pub fn ae_priority(&self) -> Result<AutoExposurePriority> {
+
+    pub fn set_ae_mode(&self, mode: AutoExposureMode) -> Result<()> {
+        let mode_val: u8 = match mode {
+            AutoExposureMode::Manual => 1,
+            AutoExposureMode::Auto => 2,
+            AutoExposureMode::ShutterPriority => 4,
+            AutoExposureMode::AperturePriority => 8,
+        };
+
         unsafe {
-            let mut priority = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_ae_priority(
+            Error::from(uvc_set_ae_mode(self.devh.as_ptr(), mode_val)).to_result()
+        }
+    }
+
+    pub fn supported_ae_modes(&self) -> Result<Vec<AutoExposureMode>> {
+        unsafe {
+            let mut mode = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_ae_mode(
                 self.devh.as_ptr(),
-                priority.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
+                mode.as_mut_ptr(),
+                uvc_req_code_UVC_GET_RES,
             )
             .into();
             if err != Error::Success {
                 return Err(err);
             }
-            match priority.assume_init() {
+
+            let mode = mode.assume_init();
+            let mut modes = Vec::new();
+            if mode & 1 != 0 {
+                modes.push(AutoExposureMode::Manual);
+            }
+            if mode & 2 != 0 {
+                modes.push(AutoExposureMode::Auto);
+            }
+            if mode & 4 != 0 {
+                modes.push(AutoExposureMode::ShutterPriority);
+            }
+            if mode & 8 != 0 {
+                modes.push(AutoExposureMode::AperturePriority);
+            }
+
+            Ok(modes)
+        }
+    }
+
+    pub fn ae_priority(&self) -> Result<AutoExposurePriority> {
+        unsafe {
+            let priority: u8 = self.get_value(|devh, ptr, req| uvc_get_ae_priority(devh, ptr, req))?;
+            match priority {
                 0 => Ok(AutoExposurePriority::Constant),
                 1 => Ok(AutoExposurePriority::Variable),
                 _ => Err(Error::Other),
             }
         }
     }
+
     pub fn exposure_abs(&self) -> Result<u32> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_exposure_abs(devh, ptr, req)) }
+    }
+
+    pub fn set_exposure_abs(&self, time: u32) -> Result<()> {
         unsafe {
-            let mut time = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_exposure_abs(
-                self.devh.as_ptr(),
-                time.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(time.assume_init())
-            } else {
-                Err(err)
-            }
+            Error::from(uvc_set_exposure_abs(self.devh.as_ptr(), time)).to_result()
         }
     }
+
+    pub fn exposure_abs_range(&self) -> Result<Range<u32>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_exposure_abs(devh, ptr, req)) }
+    }
+
     pub fn exposure_rel(&self) -> Result<i8> {
-        unsafe {
-            let mut step = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_exposure_rel(
-                self.devh.as_ptr(),
-                step.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(step.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_exposure_rel(devh, ptr, req)) }
     }
+
     pub fn focus_abs(&self) -> Result<u16> {
-        unsafe {
-            let mut focus = std::mem::MaybeUninit::uninit();
-            let err = uvc_get_focus_abs(
-                self.devh.as_ptr(),
-                focus.as_mut_ptr(),
-                uvc_req_code_UVC_GET_CUR,
-            )
-            .into();
-            if err == Error::Success {
-                Ok(focus.assume_init())
-            } else {
-                Err(err)
-            }
-        }
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_focus_abs(devh, ptr, req)) }
     }
+
     pub fn focus_rel(&self) -> Result<(i8, u8)> {
         unsafe {
             let mut focus_rel = std::mem::MaybeUninit::uninit();
@@ -147,5 +241,162 @@ impl<'a> DeviceHandle<'a> {
                 Err(err)
             }
         }
+    }
+
+    pub fn gain(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_gain(devh, ptr, req)) }
+    }
+
+    pub fn set_gain(&self, gain: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_gain(self.devh.as_ptr(), gain)).to_result()
+        }
+    }
+
+    pub fn gain_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_gain(devh, ptr, req)) }
+    }
+
+    pub fn backlight_compensation(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_backlight_compensation(devh, ptr, req)) }
+    }
+
+    pub fn set_backlight_compensation(&self, backlight_compensation: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_backlight_compensation(self.devh.as_ptr(), backlight_compensation)).to_result()
+        }
+    }
+
+    pub fn backlight_compensation_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_backlight_compensation(devh, ptr, req)) }
+    }
+
+    pub fn white_balance_temperature_auto(&self) -> Result<bool> {
+        unsafe {
+            let auto: u8 = self.get_value(|devh, ptr, req| uvc_get_white_balance_temperature_auto(devh, ptr, req))?;
+            Ok(auto != 0)
+        }
+    }
+
+    pub fn set_white_balance_temperature_auto(&self, auto: bool) -> Result<()> {
+        let auto_val: u8 = if auto { 1 } else { 0 };
+
+        unsafe {
+            Error::from(uvc_set_white_balance_temperature_auto(self.devh.as_ptr(), auto_val)).to_result()
+        }
+    }
+
+    pub fn white_balance_temperature(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_white_balance_temperature(devh, ptr, req)) }
+    }
+
+    pub fn set_white_balance_temperature(&self, temp: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_white_balance_temperature(self.devh.as_ptr(), temp)).to_result()
+        }
+    }
+
+    pub fn white_balance_temperature_range(&self) -> Result<Range<u16>> {
+        unsafe {
+            self.get_range(|devh, ptr, req| uvc_get_white_balance_temperature(devh, ptr, req))
+        }
+    }
+
+    pub fn sharpness(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_sharpness(devh, ptr, req)) }
+    }
+
+    pub fn set_sharpness(&self, sharpness: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_sharpness(self.devh.as_ptr(), sharpness)).to_result()
+        }
+    }
+
+    pub fn sharpness_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_sharpness(devh, ptr, req)) }
+    }
+
+    pub fn contrast(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_contrast(devh, ptr, req)) }
+    }
+
+    pub fn set_contrast(&self, contrast: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_contrast(self.devh.as_ptr(), contrast)).to_result()
+        }
+    }
+
+    pub fn contrast_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_contrast(devh, ptr, req)) }
+    }
+
+    pub fn saturation(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_saturation(devh, ptr, req)) }
+    }
+
+    pub fn set_saturation(&self, saturation: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_saturation(self.devh.as_ptr(), saturation)).to_result()
+        }
+    }
+
+    pub fn saturation_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_saturation(devh, ptr, req)) }
+    }
+
+    pub fn gamma(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_gamma(devh, ptr, req)) }
+    }
+
+    pub fn set_gamma(&self, gamma: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_gamma(self.devh.as_ptr(), gamma)).to_result()
+        }
+    }
+
+    pub fn gamma_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_gamma(devh, ptr, req)) }
+    }
+
+    pub fn brightness(&self) -> Result<i16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_brightness(devh, ptr, req)) }
+    }
+
+    pub fn set_brightness(&self, brightness: i16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_brightness(self.devh.as_ptr(), brightness)).to_result()
+        }
+    }
+
+    pub fn brightness_range(&self) -> Result<Range<i16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_brightness(devh, ptr, req)) }
+    }
+
+    pub fn digital_multiplier_limit(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_digital_multiplier_limit(devh, ptr, req)) }
+    }
+
+    pub fn set_digital_multiplier_limit(&self, multiplier_step: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_digital_multiplier_limit(self.devh.as_ptr(), multiplier_step)).to_result()
+        }
+    }
+
+    pub fn digital_multiplier_limit_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_digital_multiplier_limit(devh, ptr, req)) }
+    }
+
+    pub fn digital_multiplier(&self) -> Result<u16> {
+        unsafe { self.get_value(|devh, ptr, req| uvc_get_digital_multiplier(devh, ptr, req)) }
+    }
+
+    pub fn set_digital_multiplier(&self, multiplier_step: u16) -> Result<()> {
+        unsafe {
+            Error::from(uvc_set_digital_multiplier(self.devh.as_ptr(), multiplier_step)).to_result()
+        }
+    }
+
+    pub fn digital_multiplier_range(&self) -> Result<Range<u16>> {
+        unsafe { self.get_range(|devh, ptr, req| uvc_get_digital_multiplier(devh, ptr, req)) }
     }
 }

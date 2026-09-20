@@ -75,7 +75,7 @@ mod streaming;
 pub use streaming::{ActiveStream, StreamHandle};
 
 pub use context::Context;
-pub use controls::{AutoExposureMode, AutoExposurePriority, ScanningMode};
+pub use controls::{AutoExposureMode, AutoExposurePriority, Range, ScanningMode};
 pub use device::{
     DescriptionSubtype, Device, DeviceDescription, DeviceHandle, DeviceList, FormatDescriptor,
     FormatDescriptors, FrameDescriptor, FrameDescriptors,
