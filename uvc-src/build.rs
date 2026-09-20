@@ -78,9 +78,22 @@ fn main() {
 
     if std::env::var_os("CARGO_FEATURE_JPEG").is_some() {
         builder.file("source/src/frame-mjpeg.c");
-        let jpeg_includes = std::env::var_os("DEP_JPEG_INCLUDE").unwrap();
-        for jpeg_include in std::env::split_paths(&jpeg_includes) {
-            builder.include(jpeg_include);
+        let jpeg_includes = std::env::var_os("DEP_TURBOJPEG_INCLUDE")
+            .or_else(|| std::env::var_os("DEP_JPEG_INCLUDE"))
+            .expect("Failed to find JPEG headers via Cargo env vars");
+
+        let jpeg_includes_str = jpeg_includes.to_string_lossy();
+        if jpeg_includes_str.contains(',') {
+            for jpeg_include in jpeg_includes_str.split(',') {
+                let p = jpeg_include.trim();
+                if !p.is_empty() {
+                    builder.include(p);
+                }
+            }
+        } else {
+            for jpeg_include in std::env::split_paths(&jpeg_includes) {
+                builder.include(jpeg_include);
+            }
         }
     }
 

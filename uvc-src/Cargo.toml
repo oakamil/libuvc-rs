@@ -10,11 +10,11 @@ description = "Vendored version of libuvc"
 links = "uvcsrc"
 
 [features]
-jpeg = ["mozjpeg-sys"]
+jpeg = ["turbojpeg-sys"]
 uvc_debugging = []
 
 [dependencies]
-mozjpeg-sys = { version = "2.2.1", default-features = false, optional = true }
+turbojpeg-sys = { version = "1.1.1", git = "https://github.com/oakamil/rust-turbojpeg.git", optional = true }
 libusb-sys = { version = "0.7.0", package = "libusb1-sys" }
 
 [build-dependencies]

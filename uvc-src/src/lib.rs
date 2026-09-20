@@ -4,4 +4,4 @@
 extern crate libusb_sys;
 // Ensure we are linking to libjpeg
 #[cfg(feature = "jpeg")]
-extern crate mozjpeg_sys;
+extern crate turbojpeg_sys;
